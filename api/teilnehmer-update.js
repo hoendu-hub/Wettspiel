@@ -25,11 +25,7 @@ export default async function handler(req, res) {
     const tabName = process.env.GOOGLE_SHEET_TAB;
 
     // Body auslesen
-    const { Startnummer, updates } = req.body;
-
-    if (!Startnummer) {
-      return res.status(400).json({ status: "error", message: "Startnummer fehlt" });
-    }
+    const { Startnummer, updates, identifier } = req.body;
 
     if (!updates || typeof updates !== "object") {
       return res.status(400).json({ status: "error", message: "Updates fehlen oder sind ungültig" });
@@ -44,11 +40,35 @@ export default async function handler(req, res) {
     const rows = sheetData.data.values;
     const header = rows[0];
 
-    // Zeile finden
-    const rowIndex = rows.findIndex((row) => row[0] === String(Startnummer));
+    let rowIndex = -1;
+
+    // -----------------------------
+    // 1) IDENTIFIER-MODUS (Name)
+    // -----------------------------
+    if (identifier && identifier.field && identifier.value) {
+      const colIndex = header.indexOf(identifier.field);
+      if (colIndex === -1) {
+        return res.status(400).json({
+          status: "error",
+          message: `Feld '${identifier.field}' existiert nicht`,
+        });
+      }
+
+      rowIndex = rows.findIndex(row => row[colIndex] === identifier.value);
+    }
+
+    // -----------------------------
+    // 2) FALLBACK: Startnummer
+    // -----------------------------
+    if (rowIndex === -1 && Startnummer) {
+      rowIndex = rows.findIndex(row => row[0] === String(Startnummer));
+    }
 
     if (rowIndex === -1) {
-      return res.status(404).json({ status: "error", message: "Startnummer nicht gefunden" });
+      return res.status(404).json({
+        status: "error",
+        message: "Teilnehmer nicht gefunden",
+      });
     }
 
     // Bestehende Zeile kopieren
