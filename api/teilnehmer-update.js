@@ -28,10 +28,13 @@ export default async function handler(req, res) {
     const { Startnummer, updates, identifier } = req.body;
 
     if (!updates || typeof updates !== "object") {
-      return res.status(400).json({ status: "error", message: "Updates fehlen oder sind ungültig" });
+      return res.status(400).json({
+        status: "error",
+        message: "Updates fehlen oder ungültig"
+      });
     }
 
-    // Alle Daten laden
+    // Daten laden
     const sheetData = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: `${tabName}`,
@@ -42,36 +45,39 @@ export default async function handler(req, res) {
 
     let rowIndex = -1;
 
-    // -----------------------------
-    // 1) IDENTIFIER-MODUS (Name)
-    // -----------------------------
+    // -----------------------------------------
+    // 1) IDENTIFIER (Name)
+    // -----------------------------------------
     if (identifier && identifier.field && identifier.value) {
       const colIndex = header.indexOf(identifier.field);
+      if (colIndex !== -1) {
+        rowIndex = rows.findIndex(row => row[colIndex] === identifier.value);
+      }
+    }
+
+    // -----------------------------------------
+    // 2) FALLBACK: Startnummer
+    // -----------------------------------------
+    if (rowIndex === -1 && Startnummer) {
+      const colIndex = header.indexOf("Startnummer");
       if (colIndex === -1) {
         return res.status(400).json({
           status: "error",
-          message: `Feld '${identifier.field}' existiert nicht`,
+          message: "Spalte 'Startnummer' existiert nicht"
         });
       }
 
-      rowIndex = rows.findIndex(row => row[colIndex] === identifier.value);
-    }
-
-    // -----------------------------
-    // 2) FALLBACK: Startnummer
-    // -----------------------------
-    if (rowIndex === -1 && Startnummer) {
-      rowIndex = rows.findIndex(row => row[0] === String(Startnummer));
+      rowIndex = rows.findIndex(row => row[colIndex] === String(Startnummer));
     }
 
     if (rowIndex === -1) {
       return res.status(404).json({
         status: "error",
-        message: "Teilnehmer nicht gefunden",
+        message: "Teilnehmer nicht gefunden"
       });
     }
 
-    // Bestehende Zeile kopieren
+    // Zeile kopieren
     const updatedRow = [...rows[rowIndex]];
 
     // Updates anwenden
@@ -82,10 +88,12 @@ export default async function handler(req, res) {
       }
     }
 
-    // Zurückschreiben
+    // -----------------------------------------
+    // WICHTIG: ganze Zeile zurückschreiben!
+    // -----------------------------------------
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `${tabName}!A${rowIndex + 1}`,
+      range: `${tabName}!${rowIndex + 1}:${rowIndex + 1}`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [updatedRow],
@@ -94,8 +102,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       status: "ok",
-      message: "Teilnehmer aktualisiert",
-      updated: updatedRow,
+      updated: updatedRow
     });
 
   } catch (error) {
