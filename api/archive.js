@@ -3,12 +3,12 @@ import { google } from "googleapis";
 export default async function handler(req, res) {
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") {
-    return res.status(405).json({ status: "error", message: "Only GET allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ status: "error", message: "Only POST allowed" });
   }
 
   try {
@@ -16,27 +16,25 @@ export default async function handler(req, res) {
 
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"], // Schreibrechte
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
     const sheets = google.sheets({ version: "v4", auth });
 
     const sheetId = process.env.GOOGLE_SHEET_ID;
-    const tabTeilnehmer = process.env.GOOGLE_SHEET_TAB;
-    const tabArchiv = "archiv";
+    const tabTeilnehmer = process.env.GOOGLE_SHEET_TAB;   // "Teilnehmer"
+    const tabArchiv = "Archiv";                           // Name deines Archiv-Tabs
+    const tabTeilnehmerGID = 0;                           // gid vom Teilnehmer-Tab
 
-    // Jahr bestimmen
-    const jahr = new Date().getFullYear();
-
-    // Teilnehmer-Daten vollständig laden
-    const teilnehmerData = await sheets.spreadsheets.values.get({
+    // 1) Teilnehmer-Tabelle komplett laden
+    const sheetData = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
-      range: `${tabTeilnehmer}!A:Z`, // WICHTIG: ganze Tabelle lesen
+      range: `${tabTeilnehmer}!A:Z`,
     });
 
-    const rows = teilnehmerData.data.values || [];
+    const rows = sheetData.data.values || [];
+    console.log("ARCHIVE rows:", rows.length); // <--- Log
 
-    // Wenn keine Teilnehmer vorhanden sind → abbrechen
     if (rows.length <= 1) {
       return res.status(200).json({
         status: "ok",
@@ -44,38 +42,38 @@ export default async function handler(req, res) {
       });
     }
 
-    // Header + Daten
     const header = rows[0];
-    const dataRows = rows.slice(1);
+    const datenOhneHeader = rows.slice(1);
 
-    // Jahr vorne einfügen
-    const archivRows = dataRows.map((row) => [jahr, ...row]);
-
-    // In Archiv anhängen
+    // 2) Daten ans Archiv anhängen
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
       range: `${tabArchiv}!A:Z`,
       valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
       requestBody: {
-        values: archivRows,
+        values: datenOhneHeader,
       },
     });
 
-    // Teilnehmer-Tab leeren (nur Header bleibt)
+    // 3) Teilnehmer-Tab leeren, Kopfzeile behalten
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `${tabTeilnehmer}!A:Z`,
+      range: `${tabTeilnehmer}!A1:Z1`,
       valueInputOption: "RAW",
       requestBody: {
-        values: [header], // nur die Titelzeile bleibt stehen
+        values: [header],
       },
+    });
+
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: sheetId,
+      range: `${tabTeilnehmer}!A2:Z`,
     });
 
     return res.status(200).json({
       status: "ok",
-      message: "Archivierung erfolgreich",
-      jahr,
-      archivierteEinträge: archivRows.length,
+      message: "Archiviert und Teilnehmerliste geleert",
     });
 
   } catch (error) {
