@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"], // Schreibrechte
     });
 
     const sheets = google.sheets({ version: "v4", auth });
@@ -28,15 +28,15 @@ export default async function handler(req, res) {
     // Jahr bestimmen
     const jahr = new Date().getFullYear();
 
-    // Teilnehmer-Daten laden
+    // Teilnehmer-Daten vollständig laden
     const teilnehmerData = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
-      range: `${tabTeilnehmer}`,
+      range: `${tabTeilnehmer}!A:Z`, // WICHTIG: ganze Tabelle lesen
     });
 
     const rows = teilnehmerData.data.values || [];
 
-    // Wenn keine Daten vorhanden sind → abbrechen
+    // Wenn keine Teilnehmer vorhanden sind → abbrechen
     if (rows.length <= 1) {
       return res.status(200).json({
         status: "ok",
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Erste Zeile = Header
+    // Header + Daten
     const header = rows[0];
     const dataRows = rows.slice(1);
 
@@ -54,20 +54,20 @@ export default async function handler(req, res) {
     // In Archiv anhängen
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${tabArchiv}`,
+      range: `${tabArchiv}!A:Z`,
       valueInputOption: "RAW",
       requestBody: {
         values: archivRows,
       },
     });
 
-    // Teilnehmer-Tab leeren (alles außer Header)
+    // Teilnehmer-Tab leeren (nur Header bleibt)
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `${tabTeilnehmer}`,
+      range: `${tabTeilnehmer}!A:Z`,
       valueInputOption: "RAW",
       requestBody: {
-        values: [header], // nur Header bleibt
+        values: [header], // nur die Titelzeile bleibt stehen
       },
     });
 
