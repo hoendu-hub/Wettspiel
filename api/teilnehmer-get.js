@@ -11,7 +11,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Service Account Credentials aus Environment Variable
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
 
     const auth = new google.auth.GoogleAuth({
@@ -24,7 +23,6 @@ export default async function handler(req, res) {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     const tabName = process.env.GOOGLE_SHEET_TAB;
 
-    // Daten aus Google Sheets holen
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: `${tabName}`,
@@ -32,14 +30,17 @@ export default async function handler(req, res) {
 
     const rows = response.data.values;
 
+    // 🔥 WICHTIG: Immer status:"ok" zurückgeben – auch wenn leer
     if (!rows || rows.length < 2) {
-      return res.status(200).json({ data: [] });
+      return res.status(200).json({
+        status: "ok",
+        count: 0,
+        data: []
+      });
     }
 
-    // Erste Zeile = Spaltennamen
     const headers = rows[0];
 
-    // Restliche Zeilen = Daten
     const data = rows.slice(1).map((row) => {
       const obj = {};
       headers.forEach((header, index) => {
