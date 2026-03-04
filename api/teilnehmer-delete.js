@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log("DELETE BODY:", req.body);
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
 
     const auth = new google.auth.GoogleAuth({
