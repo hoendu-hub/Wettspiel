@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"], // Schreibrechte
     });
 
     const sheets = google.sheets({ version: "v4", auth });
@@ -24,28 +24,31 @@ export default async function handler(req, res) {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     const tabName = process.env.GOOGLE_SHEET_TAB;
 
+    // Bei dir ist die Tab-ID tatsächlich 0
+    const tabGID = 0;
+
     const { Startnummer } = req.body;
 
     if (!Startnummer) {
       return res.status(400).json({ status: "error", message: "Startnummer fehlt" });
     }
 
-    // Sheet laden
+    // Tabelle vollständig laden
     const sheetData = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
-      range: `${tabName}`,
+      range: `${tabName}!A:Z`, // WICHTIG: ganze Tabelle lesen
     });
 
-    const rows = sheetData.data.values;
+    const rows = sheetData.data.values || [];
 
-    // Zeile finden
+    // Zeile anhand der Startnummer finden
     const rowIndex = rows.findIndex((row) => row[0] === String(Startnummer));
 
     if (rowIndex === -1) {
       return res.status(404).json({ status: "error", message: "Startnummer nicht gefunden" });
     }
 
-    // Zeile löschen
+    // Zeile löschen (Titelzeile bleibt automatisch stehen)
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: sheetId,
       requestBody: {
@@ -53,7 +56,7 @@ export default async function handler(req, res) {
           {
             deleteDimension: {
               range: {
-                sheetId: 0, // Achtung: Tab-ID, nicht Sheet-ID
+                sheetId: tabGID,
                 dimension: "ROWS",
                 startIndex: rowIndex,
                 endIndex: rowIndex + 1,
