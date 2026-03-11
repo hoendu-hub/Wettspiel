@@ -15,15 +15,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { Name, Jahrgang } = req.body;
-
-    if (!Name || !Jahrgang) {
-      return res.status(400).json({
-        status: "error",
-        message: "Name und Jahrgang sind erforderlich"
-      });
-    }
-
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
 
     const auth = new google.auth.GoogleAuth({
@@ -45,65 +36,46 @@ export default async function handler(req, res) {
 
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
-      return res.status(404).json({
-        status: "error",
-        message: "Keine Daten gefunden"
+      return res.status(200).json({
+        status: "ok",
+        message: "Keine Daten zum Archivieren"
       });
     }
 
     const headers = rows[0];
     const dataRows = rows.slice(1);
 
-    // Zeile finden
-    const rowIndex = dataRows.findIndex(row => {
-      const rowObj = {};
-      headers.forEach((h, i) => rowObj[h] = row[i] || "");
-      return rowObj["Name"] === Name && rowObj["Jahrgang"] === Jahrgang;
-    });
-
-    if (rowIndex === -1) {
-      return res.status(404).json({
-        status: "error",
-        message: "Teilnehmer nicht gefunden"
+    if (dataRows.length === 0) {
+      return res.status(200).json({
+        status: "ok",
+        message: "Keine Daten zum Archivieren"
       });
     }
 
-    // Zeile extrahieren
-    const rowToArchive = dataRows[rowIndex];
-
-    // In Archiv anhängen
+    // ALLE Daten ins Archiv anhängen
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
       range: tabArchive,
       valueInputOption: "RAW",
       requestBody: {
-        values: [rowToArchive]
+        values: dataRows
       }
     });
 
-    // Zeile aus Eingabe löschen
-    await sheets.spreadsheets.batchUpdate({
+    // Eingabe leeren (nur Header behalten)
+    await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
+      range: tabInput,
+      valueInputOption: "RAW",
       requestBody: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId: response.data.range.split("!")[0], // funktioniert für Netlify
-                dimension: "ROWS",
-                startIndex: rowIndex + 1, // +1 wegen Header
-                endIndex: rowIndex + 2
-              }
-            }
-          }
-        ]
+        values: [headers] // nur Header zurückschreiben
       }
     });
 
     return res.status(200).json({
       status: "ok",
-      message: "Teilnehmer archiviert",
-      archived: rowToArchive
+      message: "Jungliga erfolgreich archiviert",
+      count: dataRows.length
     });
 
   } catch (error) {
