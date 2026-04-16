@@ -66,27 +66,13 @@ export default async function handler(req, res) {
   // ---------------------------------------------------------
   // POST – Teilnehmer hinzufügen
   // ---------------------------------------------------------
-  if (req.method === "POST") {
+  if (req.method === "POST" && req.body.action !== "delete") {
     try {
       const {
         Startnummer = "",
         Name = "",
         Gruppe = "",
         "Jahrgang (optional)": Jahrgang = "",
-        "Bemerkung (optional)": Bemerkung = "",
-        "Punkte Jury 1": PunkteJ1 = "",
-        "Abzug Jury 1": AbzugJ1 = "",
-        "Punkte Jury 2": PunkteJ2 = "",
-        "Abzug Jury 2": AbzugJ2 = "",
-        "Technik Jury 3": TechnikJ3 = "",
-        "Rhythmik Jury 3": RhythmikJ3 = "",
-        "Dynamik Jury 3": DynamikJ3 = "",
-        "Abzug Jury 3": AbzugJ3 = "",
-        "Technik Jury Finale": TechnikF = "",
-        "Rhythmik Jury Finale": RhythmikF = "",
-        "Dynamik Jury Finale": DynamikF = "",
-        "Abzug Jury Finale": AbzugF = "",
-        "Final‑Startnummer": FinalStartnummer = ""
       } = req.body;
 
       const newRow = [
@@ -94,20 +80,7 @@ export default async function handler(req, res) {
         Name,
         Gruppe,
         Jahrgang,
-        Bemerkung,
-        PunkteJ1,
-        AbzugJ1,
-        PunkteJ2,
-        AbzugJ2,
-        TechnikJ3,
-        RhythmikJ3,
-        DynamikJ3,
-        AbzugJ3,
-        TechnikF,
-        RhythmikF,
-        DynamikF,
-        AbzugF,
-        FinalStartnummer
+        "", "", "", "", "", "", "", "", "", "", "", "", "", ""
       ];
 
       await sheets.spreadsheets.values.append({
@@ -201,9 +174,12 @@ export default async function handler(req, res) {
   }
 
   // ---------------------------------------------------------
-  // DELETE – Teilnehmer löschen
+  // DELETE – Jimdo-kompatibel (DELETE oder POST + action:"delete")
   // ---------------------------------------------------------
-  if (req.method === "DELETE") {
+  if (
+    req.method === "DELETE" ||
+    (req.method === "POST" && req.body.action === "delete")
+  ) {
     try {
       const { Startnummer, Name, Gruppe } = req.body;
 
